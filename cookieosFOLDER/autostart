@@ -1,0 +1,8 @@
+# Labwc configuration for CookieOS Aluminum
+# Auto-launches the NATIVE Rust shell
+
+# Start the native shell binary
+/usr/local/bin/aluminum-shell &
+
+# Ensure the AI Shell is ready in the background
+# (The Native Shell interacts with it via process calls)

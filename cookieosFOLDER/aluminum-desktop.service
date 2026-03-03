@@ -1,0 +1,22 @@
+[Unit]
+Description=CookieOS Aluminum Desktop (Wayland)
+After=systemd-user-sessions.service plymouth-quit-active.service
+# Want to start after network if we need to pull AI models or Android images
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+# We run as root for now to simplify hardware access, 
+# but in production, we'd use a 'cookie' user.
+Environment=XDG_RUNTIME_DIR=/run/user/0
+Environment=WLR_LIBINPUT_NO_DEVICES=1
+ExecStartPre=/usr/bin/mkdir -p /run/user/0
+ExecStartPre=/usr/bin/chmod 700 /run/user/0
+ExecStart=/usr/bin/labwc -s /opt/cookieos/autostart
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

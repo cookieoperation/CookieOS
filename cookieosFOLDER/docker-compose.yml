@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  cookieos-builder:
+    build: .
+    container_name: cookieos-build-system
+    privileged: true # Required for mounting loop devices (disk images)
+    volumes:
+      - .:/workspace # Mount the entire project into the builder
+      - build-cache:/workspace/.cache # Persistent cache for faster apt-get/compiles
+    working_dir: /workspace
+    environment:
+      - DOCKER_COMPOSE_BUILD=true # Flag script to know it's in compose
+    command: /bin/bash ./build_image.sh --clean
+
+volumes:
+  build-cache:
+    description: Persistent caching volume for CookieOS builder downloads
