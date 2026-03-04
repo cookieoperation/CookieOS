@@ -322,6 +322,33 @@ h3 {
     line-height: 1.7;
 }
 
+/* Apps Showcase */
+.apps-showcase {
+    padding: 6rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.app-card {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.app-icon {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 1.5rem;
+    border-radius: 20px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+    background-color: var(--glass-bg);
+}
+
 /* Architecture Section */
 .architecture {
     padding: 4rem 2rem 8rem;
@@ -381,6 +408,14 @@ footer {
     font-weight: 800;
     color: var(--text-primary);
     margin-bottom: 1rem;
+}
+
+.disclaimer {
+    font-size: 0.9rem;
+    color: var(--accent-red);
+    margin-top: 1.5rem;
+    font-weight: 500;
+    opacity: 0.9;
 }
 
 .copyright {
