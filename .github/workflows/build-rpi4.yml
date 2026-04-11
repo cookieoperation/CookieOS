@@ -1,0 +1,124 @@
+name: Build CookieOS Slime v1 (Raspberry Pi 4)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main", "work"]
+    paths:
+      - ".github/workflows/build-rpi4.yml"
+      - "patches/branding/**"
+      - "manifests/**"
+
+jobs:
+  build-rpi4:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 720
+    env:
+      TZ: UTC
+      USE_CCACHE: "1"
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPRESS: "1"
+      COOKIEOS_MANIFEST_URL: https://github.com/CookieOS/manifest.git
+      COOKIEOS_MANIFEST_BRANCH: slime-v1
+      DEVICE_LUNCH: lineage_rpi4-userdebug
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git git-lfs gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev \
+            lib32z1-dev libelf-dev libgl1-mesa-dev liblz4-tool libncurses5 \
+            libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils \
+            lzop openjdk-17-jdk pngcrush rsync schedtool squashfs-tools \
+            unzip x11proto-core-dev xsltproc zip zlib1g-dev python3
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod a+x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize and sync CookieOS manifest
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          cd "$GITHUB_WORKSPACE/src"
+          repo init -u "$COOKIEOS_MANIFEST_URL" -b "$COOKIEOS_MANIFEST_BRANCH"
+          repo sync --force-sync --current-branch --no-clone-bundle --no-tags -j"$(nproc --all)"
+
+      - name: Apply CookieOS branding patches (Settings + SystemUI)
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE/src"
+
+          SETTINGS_DIR="packages/apps/Settings"
+          SYSUI_DIR="frameworks/base/packages/SystemUI"
+
+          if [ ! -d "$SETTINGS_DIR" ] || [ ! -d "$SYSUI_DIR" ]; then
+            echo "Expected AOSP paths not found. Check manifest branch/paths."
+            exit 1
+          fi
+
+          if [ -f "$GITHUB_WORKSPACE/patches/branding/settings.patch" ]; then
+            git -C "$SETTINGS_DIR" apply "$GITHUB_WORKSPACE/patches/branding/settings.patch"
+          else
+            echo "No settings.patch found; skipping Settings branding patch."
+          fi
+
+          if [ -f "$GITHUB_WORKSPACE/patches/branding/systemui.patch" ]; then
+            git -C "$SYSUI_DIR" apply "$GITHUB_WORKSPACE/patches/branding/systemui.patch"
+          else
+            echo "No systemui.patch found; skipping SystemUI branding patch."
+          fi
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-rpi4-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-rpi4-${{ github.ref_name }}-
+            ccache-rpi4-
+
+      - name: Build CookieOS image for Raspberry Pi 4
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE/src"
+          source build/envsetup.sh
+          lunch "$DEVICE_LUNCH"
+          mka bacon
+
+      - name: Collect flashable image
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE/src"
+          PRODUCT_OUT="out/target/product/rpi4"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+
+          IMG_FILE=$(find "$PRODUCT_OUT" -maxdepth 1 -type f \( -name "*.img" -o -name "lineage-*.img" \) | head -n 1)
+          if [ -z "$IMG_FILE" ]; then
+            echo "No flashable .img found in $PRODUCT_OUT"
+            exit 1
+          fi
+
+          cp "$IMG_FILE" "$GITHUB_WORKSPACE/artifacts/cookieos-rpi4-${GITHUB_RUN_NUMBER}.img"
+          sha256sum "$GITHUB_WORKSPACE/artifacts/cookieos-rpi4-${GITHUB_RUN_NUMBER}.img" \
+            > "$GITHUB_WORKSPACE/artifacts/cookieos-rpi4-${GITHUB_RUN_NUMBER}.img.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cookieos-rpi4-image-${{ github.run_number }}
+          path: artifacts/
+          if-no-files-found: error
